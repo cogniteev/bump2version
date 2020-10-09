@@ -46,12 +46,11 @@ xfail_if_no_hg = pytest.mark.xfail(
 )
 
 VCS_GIT = pytest.param("git", marks=xfail_if_no_git())
-VCS_MERCURIAL = pytest.param("hg", marks=xfail_if_no_hg())
 COMMIT = "[bumpversion]\ncommit = True"
 COMMIT_NOT_TAG = "[bumpversion]\ncommit = True\ntag = False"
 
 
-@pytest.fixture(params=[VCS_GIT, VCS_MERCURIAL])
+@pytest.fixture(params=[VCS_GIT])
 def vcs(request):
     """Return all supported VCS systems (git, hg)."""
     return request.param

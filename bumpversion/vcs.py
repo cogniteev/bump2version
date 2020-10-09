@@ -1,38 +1,33 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import unicode_literals, print_function
-
 import errno
 import logging
 import os
 import subprocess
 from tempfile import NamedTemporaryFile
 
-from bumpversion.exceptions import (
-    WorkingDirectoryIsDirtyException,
-    MercurialDoesNotSupportSignedTagsException,
-)
-from bumpversion.compat import _command_args
+from bumpversion.exceptions import WorkingDirectoryIsDirtyException
 
 
 logger = logging.getLogger(__name__)
 
 
-class BaseVCS(object):
+class BaseVCS:
 
     _TEST_USABLE_COMMAND = None
     _COMMIT_COMMAND = None
 
     @classmethod
-    def commit(cls, message, context):
+    def commit(cls, message, context, extra_args=None):
+        extra_args = extra_args or []
         with NamedTemporaryFile("wb", delete=False) as f:
             f.write(message.encode("utf-8"))
         env = os.environ.copy()
-        env[str("HGENCODING")] = str("utf-8")
+        env["HGENCODING"] = "utf-8"
         for key in ("current_version", "new_version"):
             env[str("BUMPVERSION_" + key.upper())] = str(context[key])
         try:
-            subprocess.check_output(cls._COMMIT_COMMAND + [f.name], env=env)
+            subprocess.check_output(
+                cls._COMMIT_COMMAND + [f.name] + extra_args, env=env
+            )
         except subprocess.CalledProcessError as exc:
             err_msg = "Failed to run {}: return code {}, output: {}".format(
                 exc.cmd, exc.returncode, exc.output
@@ -122,53 +117,19 @@ class Git(BaseVCS):
 
     @classmethod
     def add_path(cls, path):
-        subprocess.check_output(_command_args(["git", "add", "--update", path]))
+        subprocess.check_output(["git", "add", "--update", path])
 
     @classmethod
     def tag(cls, sign, name, message):
+        """
+        Create a tag of the new_version in VCS.
+
+        If only name is given, bumpversion uses a lightweight tag.
+        Otherwise, it utilizes an annotated tag.
+        """
         command = ["git", "tag", name]
         if sign:
-            command += ["-s"]
+            command += ["--sign"]
         if message:
             command += ["--message", message]
-        subprocess.check_output(_command_args(command))
-
-
-class Mercurial(BaseVCS):
-
-    _TEST_USABLE_COMMAND = ["hg", "root"]
-    _COMMIT_COMMAND = ["hg", "commit", "--logfile"]
-
-    @classmethod
-    def latest_tag_info(cls):
-        return {}
-
-    @classmethod
-    def assert_nondirty(cls):
-        lines = [
-            line.strip()
-            for line in subprocess.check_output(["hg", "status", "-mard"]).splitlines()
-            if not line.strip().startswith(b"??")
-        ]
-
-        if lines:
-            raise WorkingDirectoryIsDirtyException(
-                "Mercurial working directory is not clean:\n{}".format(
-                    b"\n".join(lines).decode()
-                )
-            )
-
-    @classmethod
-    def add_path(cls, path):
-        pass
-
-    @classmethod
-    def tag(cls, sign, name, message):
-        command = ["hg", "tag", name]
-        if sign:
-            raise MercurialDoesNotSupportSignedTagsException(
-                "Mercurial does not support signed tags."
-            )
-        if message:
-            command += ["--message", message]
-        subprocess.check_output(_command_args(command))
+        subprocess.check_output(command)

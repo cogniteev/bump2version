@@ -13,6 +13,7 @@ import sys
 import warnings
 
 from bumpversion import __version__, __title__
+from bumpversion.vcs import Git
 from bumpversion.version_part import (
     VersionConfig,
     NumericVersionPartConfiguration,
@@ -36,7 +37,6 @@ from bumpversion.utils import (
     keyvaluestring,
     prefixed_environ,
 )
-from bumpversion.vcs import Git, Mercurial
 
 
 DESCRIPTION = "{}: v{} (using Python v{})".format(
@@ -44,7 +44,6 @@ DESCRIPTION = "{}: v{} (using Python v{})".format(
     __version__,
     sys.version.split("\n")[0].split(" ")[0]
 )
-VCS = [Git, Mercurial]
 
 
 logger_list = logging.getLogger("bumpversion.list")
@@ -98,7 +97,7 @@ def main(original_args=None):
     new_version = _parse_new_version(args, new_version, version_config)
 
     # replace version in target files
-    vcs = _determine_vcs_dirty(VCS, defaults)
+    vcs = _determine_vcs_dirty([Git], defaults)
     files.extend(
         ConfiguredFile(file_name, version_config)
         for file_name
@@ -204,9 +203,8 @@ def _setup_logging(show_list, verbose):
 
 def _determine_vcs_usability():
     vcs_info = {}
-    for vcs in VCS:
-        if vcs.is_usable():
-            vcs_info.update(vcs.latest_tag_info())
+    if Git.is_usable():
+        vcs_info.update(Git.latest_tag_info())
     return vcs_info
 
 
