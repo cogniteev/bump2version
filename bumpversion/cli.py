@@ -80,7 +80,7 @@ def main(original_args=None):
         explicit_config = known_args.config_file
     config_file = _determine_config_file(explicit_config)
     config, config_file_exists, config_newlines, part_configs, files = _load_configuration(
-        config_file, explicit_config, defaults,
+        config_file, explicit_config, defaults, known_args.dev
     )
     known_args, parser2, remaining_argv = _parse_arguments_phase_2(
         args, known_args, defaults, root_parser
@@ -182,6 +182,10 @@ def _parse_arguments_phase_1(original_args):
         help="Don't abort if working directory is dirty",
         required=False,
     )
+    root_parser.add_argument(
+        "--dev",
+        action='store_true',
+        help='Use dev version')
     known_args, _ = root_parser.parse_known_args(args)
     return args, known_args, root_parser, positionals
 
@@ -225,7 +229,7 @@ def _determine_config_file(explicit_config):
     return ".bumpversion.cfg"
 
 
-def _load_configuration(config_file, explicit_config, defaults):
+def _load_configuration(config_file, explicit_config, defaults, dev):
     # setup.cfg supports interpolation - for compatibility we must do the same.
     if os.path.basename(config_file) == "setup.cfg":
         config = ConfigParser("")
@@ -334,12 +338,13 @@ def _load_configuration(config_file, explicit_config, defaults):
 
             if "parse" not in section_config:
                 section_config["parse"] = defaults.get(
-                    "parse", r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
+                    "parse", r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(\.dev(?P<dev>\d+))?"
                 )
 
             if "serialize" not in section_config:
                 section_config["serialize"] = defaults.get(
-                    "serialize", [str("{major}.{minor}.{patch}")]
+                    "serialize", [str("{major}.{minor}.{patch}.dev{dev}"),
+                                  str("{major}.{minor}.{patch}")]
                 )
 
             if "search" not in section_config:
@@ -371,7 +376,7 @@ def _parse_arguments_phase_2(args, known_args, defaults, root_parser):
         metavar="REGEX",
         help="Regex parsing the version string",
         default=defaults.get(
-            "parse", r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
+            "parse", r"(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(\.dev(?P<dev>\d+))?"
         ),
     )
     parser2.add_argument(
@@ -379,7 +384,8 @@ def _parse_arguments_phase_2(args, known_args, defaults, root_parser):
         metavar="FORMAT",
         action=DiscardDefaultIfSpecifiedAppendAction,
         help="How to format what is parsed back to a version",
-        default=defaults.get("serialize", [str("{major}.{minor}.{patch}")]),
+        default=defaults.get("serialize", [str("{major}.{minor}.{patch}.dev{dev}"),
+                                           str("{major}.{minor}.{patch}")]),
     )
     parser2.add_argument(
         "--search",
@@ -393,10 +399,6 @@ def _parse_arguments_phase_2(args, known_args, defaults, root_parser):
         help="Template for complete string to replace",
         default=defaults.get("replace", "{new_version}"),
     )
-    parser2.add_argument(
-        "--dev",
-        action='store_true',
-        help='Use dev version')
     known_args, remaining_argv = parser2.parse_known_args(args)
 
     defaults.update(vars(known_args))
@@ -433,7 +435,8 @@ def _assemble_new_version(
                 sha1 = hashlib.sha1(git_state.strip()).hexdigest()
                 new_version = Version({'major': current_version['major'],
                                        'minor': current_version['minor'],
-                                       'patch': int(sha1, 16) % (10 ** 8)})
+                                       'patch': current_version['patch'],
+                                       'dev': int(sha1, 16) % (10 ** 8)})
                 defaults["new_version"] = version_config.serialize(new_version, context)
             elif current_version and positionals:
                 logger.info("Attempting to increment part '%s'", positionals[0])
@@ -554,9 +557,7 @@ def _parse_arguments_phase_3(remaining_argv, positionals, defaults, parser2):
     parser3.add_argument(
         "files", metavar="file", nargs="*", help="Files to change", default=file_names
     )
-    remaining_args = remaining_argv + positionals
-    if remaining_args:
-        args = parser3.parse_args(remaining_args)
+    args = parser3.parse_args(remaining_argv + positionals)
 
     if args.dry_run:
         logger.info("Dry run active, won't touch any files.")
@@ -675,7 +676,7 @@ def _commit_to_vcs(files, context, config_file, config_file_exists, vcs, args, c
     context.update({'current_' + part: current_version[part].value for part in current_version})
     context.update({'new_' + part: new_version[part].value for part in new_version})
 
-    commit_message = args.message.format(**context)
+    commit_message = str(args.message.format(**context).encode('utf-8'))
 
     logger.info(
         "%s to %s with message '%s'",

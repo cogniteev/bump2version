@@ -121,7 +121,6 @@ class Version(object):
                 new_values[label] = self._values[label].copy()
 
         new_version = Version(new_values)
-
         return new_version
 
 
@@ -263,6 +262,7 @@ class VersionConfig(object):
                 )
                 chosen = serialize_format
                 logger.debug("Found '%s' to be a usable serialization format", chosen)
+                break
             except IncompleteVersionRepresentationException as e:
                 if not chosen:
                     chosen = serialize_format
@@ -274,7 +274,6 @@ class VersionConfig(object):
             raise KeyError("Did not find suitable serialization format")
 
         logger.debug("Selected serialization format '%s'", chosen)
-
         return chosen
 
     def serialize(self, version, context):
