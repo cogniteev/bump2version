@@ -2,6 +2,8 @@
 from __future__ import unicode_literals
 
 import argparse
+import hashlib
+import subprocess
 from datetime import datetime
 import io
 import itertools
@@ -17,7 +19,7 @@ from bumpversion.vcs import Git
 from bumpversion.version_part import (
     VersionConfig,
     NumericVersionPartConfiguration,
-    ConfiguredVersionPartConfiguration,
+    ConfiguredVersionPartConfiguration, Version,
 )
 from bumpversion.compat import (
     ConfigParser,
@@ -91,7 +93,7 @@ def main(original_args=None):
 
     # calculate the desired new version
     new_version = _assemble_new_version(
-        context, current_version, defaults, known_args.current_version, positionals, version_config
+        context, current_version, defaults, known_args.dev, known_args.current_version, positionals, version_config
     )
     args, file_names = _parse_arguments_phase_3(remaining_argv, positionals, defaults, parser2)
     new_version = _parse_new_version(args, new_version, version_config)
@@ -391,6 +393,10 @@ def _parse_arguments_phase_2(args, known_args, defaults, root_parser):
         help="Template for complete string to replace",
         default=defaults.get("replace", "{new_version}"),
     )
+    parser2.add_argument(
+        "--dev",
+        action='store_true',
+        help='Use dev version')
     known_args, remaining_argv = parser2.parse_known_args(args)
 
     defaults.update(vars(known_args))
@@ -416,12 +422,16 @@ def _setup_versionconfig(known_args, part_configs):
 
 
 def _assemble_new_version(
-    context, current_version, defaults, arg_current_version, positionals, version_config
+    context, current_version, defaults, arg_dev, arg_current_version, positionals, version_config
 ):
     new_version = None
     if "new_version" not in defaults and arg_current_version:
         try:
-            if current_version and positionals:
+            if arg_dev:
+                sha1 = hashlib.sha1(subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()).hexdigest()
+                new_version = Version({'major': 0, 'minor': 0, 'patch': int(sha1, 16) % (10 ** 8)})
+                defaults["new_version"] = version_config.serialize(new_version, context)
+            elif current_version and positionals:
                 logger.info("Attempting to increment part '%s'", positionals[0])
                 new_version = current_version.bump(positionals[0], version_config.order())
                 logger.info("Values are now: %s", keyvaluestring(new_version._values))
