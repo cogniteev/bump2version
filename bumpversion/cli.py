@@ -427,9 +427,13 @@ def _assemble_new_version(
     new_version = None
     if "new_version" not in defaults and arg_current_version:
         try:
-            if arg_dev:
-                sha1 = hashlib.sha1(subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()).hexdigest()
-                new_version = Version({'major': 0, 'minor': 0, 'patch': int(sha1, 16) % (10 ** 8)})
+            if current_version and arg_dev:
+                git_state = subprocess.check_output(['git', 'rev-parse', 'HEAD']) + \
+                            subprocess.check_output(['git', 'config', 'user.name'])
+                sha1 = hashlib.sha1(git_state.strip()).hexdigest()
+                new_version = Version({'major': current_version['major'],
+                                       'minor': current_version['minor'],
+                                       'patch': int(sha1, 16) % (10 ** 8)})
                 defaults["new_version"] = version_config.serialize(new_version, context)
             elif current_version and positionals:
                 logger.info("Attempting to increment part '%s'", positionals[0])
@@ -546,11 +550,13 @@ def _parse_arguments_phase_3(remaining_argv, positionals, defaults, parser2):
     if "files" in defaults:
         assert defaults["files"] is not None
         file_names = defaults["files"].split(" ")
-    parser3.add_argument("part", help="Part of the version to be bumped.")
+    parser3.add_argument("part", nargs='?', help="Part of the version to be bumped.", default='file')
     parser3.add_argument(
         "files", metavar="file", nargs="*", help="Files to change", default=file_names
     )
-    args = parser3.parse_args(remaining_argv + positionals)
+    remaining_args = remaining_argv + positionals
+    if remaining_args:
+        args = parser3.parse_args(remaining_args)
 
     if args.dry_run:
         logger.info("Dry run active, won't touch any files.")
