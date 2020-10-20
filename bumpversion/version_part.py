@@ -115,6 +115,8 @@ class Version(object):
             elif label == part_name:
                 new_values[label] = self._values[label].bump()
                 bumped = True
+            elif part_name != 'dev' and label == 'dev':
+                pass
             elif bumped:
                 new_values[label] = self._values[label].null()
             else:
@@ -186,6 +188,8 @@ class VersionConfig(object):
             return None
 
         for key, value in match.groupdict().items():
+            if key == 'dev' and value is None:
+                continue
             _parsed[key] = VersionPart(value, self.part_configs.get(key))
 
         v = Version(_parsed, version_string)
@@ -222,8 +226,7 @@ class VersionConfig(object):
         found_required = False
 
         for k in self.order():
-            v = values[k]
-
+            v = values.get(k)
             if not isinstance(v, VersionPart):
                 # values coming from environment variables don't need
                 # representation
@@ -268,7 +271,6 @@ class VersionConfig(object):
                     chosen = serialize_format
             except MissingValueForSerializationException as e:
                 logger.info(e.message)
-                raise e
 
         if not chosen:
             raise KeyError("Did not find suitable serialization format")

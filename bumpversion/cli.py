@@ -71,6 +71,9 @@ OPTIONAL_ARGUMENTS_THAT_TAKE_VALUES = [
 def main(original_args=None):
     # determine configuration based on command-line arguments
     # and on-disk configuration files
+
+
+
     args, known_args, root_parser, positionals = _parse_arguments_phase_1(original_args)
     _setup_logging(known_args.list, known_args.verbose)
     vcs_info = _determine_vcs_usability()
@@ -80,11 +83,17 @@ def main(original_args=None):
         explicit_config = known_args.config_file
     config_file = _determine_config_file(explicit_config)
     config, config_file_exists, config_newlines, part_configs, files = _load_configuration(
-        config_file, explicit_config, defaults, known_args.dev
+        config_file, explicit_config, defaults
     )
+
     known_args, parser2, remaining_argv = _parse_arguments_phase_2(
         args, known_args, defaults, root_parser
     )
+    peek_parser = parse_peek_arg(parser2)
+    if getattr(peek_parser.parse_known_args()[0], "peek"):
+        print(known_args.current_version)
+        return
+
     version_config = _setup_versionconfig(known_args, part_configs)
     current_version = version_config.parse(known_args.current_version)
     context = dict(
@@ -95,7 +104,8 @@ def main(original_args=None):
     new_version = _assemble_new_version(
         context, current_version, defaults, known_args.dev, known_args.current_version, positionals, version_config
     )
-    args, file_names = _parse_arguments_phase_3(remaining_argv, positionals, defaults, parser2)
+    args, file_names = _parse_arguments_phase_3(remaining_argv, positionals, defaults, peek_parser)
+
     new_version = _parse_new_version(args, new_version, version_config)
 
     # replace version in target files
@@ -118,6 +128,8 @@ def main(original_args=None):
     if vcs:
         context = _commit_to_vcs(files, context, config_file, config_file_exists, vcs, args, current_version, new_version)
         _tag_in_vcs(vcs, context, args)
+
+    print(args.new_version)
 
 
 def split_args_in_optional_and_positional(args):
@@ -229,7 +241,7 @@ def _determine_config_file(explicit_config):
     return ".bumpversion.cfg"
 
 
-def _load_configuration(config_file, explicit_config, defaults, dev):
+def _load_configuration(config_file, explicit_config, defaults):
     # setup.cfg supports interpolation - for compatibility we must do the same.
     if os.path.basename(config_file) == "setup.cfg":
         config = ConfigParser("")
@@ -360,6 +372,17 @@ def _load_configuration(config_file, explicit_config, defaults, dev):
     return config, config_file_exists, config_newlines, part_configs, files
 
 
+def parse_peek_arg(parser2):
+    peek_parser = argparse.ArgumentParser(add_help=False, parents=[parser2])
+    peek_parser.add_argument(
+        "--peek",
+        action="store_true",
+        default=False,
+        help="Allows to print current version",
+    )
+    return peek_parser
+
+
 def _parse_arguments_phase_2(args, known_args, defaults, root_parser):
     parser2 = argparse.ArgumentParser(
         prog="bumpversion", add_help=False, parents=[root_parser]
@@ -452,13 +475,13 @@ def _assemble_new_version(
     return new_version
 
 
-def _parse_arguments_phase_3(remaining_argv, positionals, defaults, parser2):
+def _parse_arguments_phase_3(remaining_argv, positionals, defaults, peek_parser):
     parser3 = argparse.ArgumentParser(
         prog="bumpversion",
         description=DESCRIPTION,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         conflict_handler="resolve",
-        parents=[parser2],
+        parents=[peek_parser]
     )
     parser3.set_defaults(**defaults)
     parser3.add_argument(
