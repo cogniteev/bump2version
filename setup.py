@@ -11,7 +11,7 @@ with open(os.path.join(here, 'README.md')) as f:
 
 setup(
     name='bump2version',
-    version='1.0.0',
+    version='1.0.1',
     url='https://github.com/c4urself/bump2version',
     author='Christian Verkerk',
     author_email='christianverkerk@ymail.com',
