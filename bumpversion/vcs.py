@@ -18,8 +18,8 @@ class BaseVCS:
     @classmethod
     def commit(cls, message, context, extra_args=None):
         extra_args = extra_args or []
-        with NamedTemporaryFile("wb", delete=False) as f:
-            f.write(message.encode("utf-8"))
+        with NamedTemporaryFile("w", delete=False) as f:
+            f.write(message)
         env = os.environ.copy()
         env["HGENCODING"] = "utf-8"
         for key in ("current_version", "new_version"):
