@@ -10,12 +10,9 @@ with open(os.path.join(here, 'README.md')) as f:
     long_description = '\n' + f.read()
 
 setup(
-    name='bump2version',
-    version='1.0.2',
-    url='https://github.com/c4urself/bump2version',
-    author='Christian Verkerk',
-    author_email='christianverkerk@ymail.com',
-    license='MIT',
+    name='bump2version-oc',
+    version='1.0.0',
+    url='https://github.com/cogniteev/bump2version',
     packages=['bumpversion'],
     description=description,
     long_description=long_description,
